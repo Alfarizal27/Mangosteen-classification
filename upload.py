@@ -13,7 +13,7 @@ def predict_image(path):
         print("Gambar tidak ditemukan:", path)
         return
 
-    img = cv2.resize(img, (128, 128))
+    img = cv2.resize(img, (64, 64))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img = img.flatten().reshape(1, -1)
 
