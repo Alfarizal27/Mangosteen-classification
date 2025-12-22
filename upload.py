@@ -7,6 +7,16 @@ from PIL import Image, ImageTk
 
 model = joblib.load("decision_tree_manggis.pkl")
 
+GRADE_MAP = {
+    1: "Grade C",
+    2: "Grade C",
+    3: "Grade B",
+    4: "Grade B",
+    5: "Grade A",
+    6: "Grade A"
+}
+
+
 def predict_image():
     file_path = filedialog.askopenfilename(
         filetypes=[("Image Files", "*.jpg *.png *.jpeg")]
