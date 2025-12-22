@@ -28,9 +28,9 @@ import joblib
 # load csv + one hot -> label tunggal
 def load_label(label_path):
     df = pd.read_csv(label_path, header=None, skiprows=1)
-    df.columns = ["filename", "l1", "l2", "l3", "l4", "l5"]
+    df.columns = ["filename", "l1", "l2", "l3", "l4", "l5", "l6"]
     
-    df["label"] = df[["l1", "l2", "l3", "l4", "l5"]].idxmax(axis=1)
+    df["label"] = df[["l1", "l2", "l3", "l4", "l5", "l6"]].idxmax(axis=1)
     df["label"] = df["label"].str.replace("l", "").astype(int)
     
     return df
