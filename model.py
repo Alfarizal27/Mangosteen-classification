@@ -19,8 +19,8 @@ import joblib
 # ======================================================
 # KONFIGURASI
 # ======================================================
-IMAGE_DIR = "C:\kuliah\Semester 5\Machine learning\project 3 matkul/all_datasetv2"
-LABEL_CSV = "C:\kuliah\Semester 5\Machine learning\project 3 matkul/all_datasetv2/all_dataset2.csv"
+IMAGE_DIR = "image path"
+LABEL_CSV = "csv path"
 IMG_SIZE = 128
 RANDOM_STATE = 42
 
