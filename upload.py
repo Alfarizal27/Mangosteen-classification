@@ -3,27 +3,39 @@ from tkinter import filedialog
 import cv2
 import joblib
 import numpy as np
+import paho.mqtt.client as mqtt
+
 from PIL import Image, ImageTk
 from skimage.feature import graycomatrix, graycoprops
 
-# =========================
+# ======================================================
+# MQTT
+# ======================================================
+MQTT_BROKER = "broker.hivemq.com"
+MQTT_TOPIC  = "manggis/grade"
+
+mqtt_client = mqtt.Client()
+mqtt_client.connect(MQTT_BROKER, 1883, 60)
+mqtt_client.loop_start()
+
+# ======================================================
 # PILIH MODEL
-# =========================
+# ======================================================
 USE_SVM = True   # True = SVM | False = Random Forest
 
 if USE_SVM:
     model = joblib.load("svm_model.pkl")
-    scaler = joblib.load("scaler.pkl")
 else:
     model = joblib.load("rf_model.pkl")
-    scaler = joblib.load("scaler.pkl")
+
+scaler = joblib.load("scaler.pkl")
 
 IMG_SIZE = 128
 CONFIDENCE_THRESHOLD = 0.50
 
-# =========================
-# GRADE MAP (LABEL NUMERIK)
-# =========================
+# ======================================================
+# LABEL MAPPING
+# ======================================================
 GRADE_MAP = {
     1: "Grade C",
     2: "Grade C",
@@ -33,17 +45,23 @@ GRADE_MAP = {
     6: "Grade A"
 }
 
-# =========================
+GRADE_TO_CMD = {
+    "Grade A": "A",
+    "Grade B": "B",
+    "Grade C": "C"
+}
+
+# ======================================================
 # FEATURE EXTRACTION
-# =========================
+# ======================================================
 def extract_color_features(rgb_img):
     return [
-        np.mean(rgb_img[:, :, 0]),
-        np.mean(rgb_img[:, :, 1]),
-        np.mean(rgb_img[:, :, 2]),
-        np.std(rgb_img[:, :, 0]),
-        np.std(rgb_img[:, :, 1]),
-        np.std(rgb_img[:, :, 2])
+        np.mean(rgb_img[:,:,0]),
+        np.mean(rgb_img[:,:,1]),
+        np.mean(rgb_img[:,:,2]),
+        np.std(rgb_img[:,:,0]),
+        np.std(rgb_img[:,:,1]),
+        np.std(rgb_img[:,:,2])
     ]
 
 def extract_texture_features(gray_img):
@@ -59,10 +77,10 @@ def extract_texture_features(gray_img):
     )
 
     return [
-        graycoprops(glcm, 'contrast')[0, 0],
-        graycoprops(glcm, 'homogeneity')[0, 0],
-        graycoprops(glcm, 'energy')[0, 0],
-        graycoprops(glcm, 'correlation')[0, 0]
+        graycoprops(glcm, 'contrast')[0,0],
+        graycoprops(glcm, 'homogeneity')[0,0],
+        graycoprops(glcm, 'energy')[0,0],
+        graycoprops(glcm, 'correlation')[0,0]
     ]
 
 def extract_all_features(image_path):
@@ -72,17 +90,14 @@ def extract_all_features(image_path):
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) / 255.0
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) / 255.0
 
-    features = extract_color_features(rgb) + extract_texture_features(gray)
-    features = np.array(features).reshape(1, -1)
+    feats = extract_color_features(rgb) + extract_texture_features(gray)
+    feats = np.array(feats).reshape(1, -1)
 
-    if scaler is not None:
-        features = scaler.transform(features)
+    return scaler.transform(feats)
 
-    return features
-
-# =========================
-# PREDIKSI GAMBAR
-# =========================
+# ======================================================
+# PREDIKSI
+# ======================================================
 def predict_image():
     file_path = filedialog.askopenfilename(
         filetypes=[("Image Files", "*.jpg *.png *.jpeg")]
@@ -92,10 +107,9 @@ def predict_image():
 
     features = extract_all_features(file_path)
 
-    # ===== PREDIKSI =====
-    pred_label = model.predict(features)[0]
+    pred_label = int(model.predict(features)[0])
+    grade = GRADE_MAP.get(pred_label, "Tidak diketahui")
 
-    # ===== CONFIDENCE (JIKA ADA) =====
     confidence = None
     if hasattr(model, "predict_proba"):
         proba = model.predict_proba(features)[0]
@@ -107,9 +121,14 @@ def predict_image():
             )
             return
 
-    grade = GRADE_MAP.get(int(pred_label), "Tidak diketahui")
+    # ===== KIRIM MQTT =====
+    if grade in GRADE_TO_CMD:
+        cmd = GRADE_TO_CMD[grade]
+        mqtt_client.publish(MQTT_TOPIC, cmd)
+        print("Publish MQTT:", cmd)
 
-    if confidence is not None:
+    # ===== UPDATE GUI =====
+    if confidence:
         result_label.config(
             text=f"Hasil Prediksi: {grade} ({confidence:.2f})"
         )
@@ -118,17 +137,16 @@ def predict_image():
             text=f"Hasil Prediksi: {grade}"
         )
 
-    # ===== TAMPILKAN GAMBAR =====
-    show_img = Image.open(file_path).resize((250, 250))
-    img_tk = ImageTk.PhotoImage(show_img)
+    img_show = Image.open(file_path).resize((250, 250))
+    img_tk = ImageTk.PhotoImage(img_show)
     panel.config(image=img_tk)
     panel.image = img_tk
 
-# =========================
+# ======================================================
 # GUI
-# =========================
+# ======================================================
 root = tk.Tk()
-root.title("Klasifikasi Kualitas Manggis")
+root.title("Klasifikasi Kualitas Manggis (MQTT)")
 
 btn = tk.Button(
     root,
